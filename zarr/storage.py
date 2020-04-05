@@ -1954,6 +1954,99 @@ class LRUStoreCache(MutableMapping):
             self._invalidate_value(key)
 
 
+class StoreCache(MutableMapping):
+    """Storage class which wraps another store to provide chunk
+    caching via a cache passed during initialization.
+
+    StoreCache is similar to LRUStoreCache but uses an external cache.
+    The cache can be any object which has __getitem__ and __setitem__.
+
+    Parameters
+    ----------
+    store : MutableMapping
+        The store containing the actual data to be cached.
+    cache :
+        An object implementing the collections.abc.Mapping interface
+
+    Examples
+    --------
+    The example below wraps an S3 store with an LRU cache::
+
+        >>> import s3fs
+        >>> import zarr
+        >>> s3 = s3fs.S3FileSystem(anon=True, client_kwargs=dict(region_name='eu-west-2'))
+        >>> s3_store = s3fs.S3Map(root='zarr-demo/store', s3=s3, check=False)
+        >>> cache = dbm.open('/tmp/cache', flag='c')
+        >>> store = zarr.StoreCache(s3_store, cache)
+        >>> root = zarr.group(store=store)  # doctest: +REMOTE_DATA
+        >>> # first request is retrieved from s3_store
+        >>> z = root['foo/bar/baz']  # doctest: +REMOTE_DATA
+        >>> # second request comes from cache
+        >>> z = root['foo/bar/baz']  # doctest: +REMOTE_DATA
+    """
+
+    def __init__(self, store, cache):
+        self._cache = cache
+        self._store = store
+
+    def __getitem__(self, key):
+        value = self._cache.get(key)
+        if not value:
+            value = self._store.__getitem__(key)
+            self._cache[key] = value
+        return value
+
+    def __iter__(self):
+        return self._store.__iter__()
+
+    def __len__(self):
+        return self._store.__len__()
+
+    def __contains__(self, key):
+        return key in self._cache or self._store.__contains__(key)
+
+    def keys(self):
+        return self._store.keys()
+
+    def __delitem__(self, key):
+        self._store.__delitem__(key)
+        del self._cache[key]
+
+    def __setitem__(self, key, value):
+        self._store.__setitem__(key, value)
+        self._cache[key] = value
+
+    def items(self):
+        return self._store.items()
+
+    def values(self):
+        return self._store.values()
+
+    def __pop__(self):
+        raise NotImplementedError('pop not implemented')
+
+    def __popitem__(self):
+        raise NotImplementedError('popitem not implemented')
+
+    def __clear__(self):
+        raise NotImplementedError('clear not implemented')
+
+    def __update__(self):
+        raise NotImplementedError('update not implemented')
+
+    def __setdefault__(self):
+        raise NotImplementedError('setdefault not implemented')
+
+    def get(self, key):
+        raise NotImplementedError('get not implemented')
+
+    def __eq__(self):
+        raise NotImplementedError('eq not implemented')
+
+    def __ne__(self):
+        raise NotImplementedError('ne not implemented')
+
+
 class ABSStore(MutableMapping):
     """Storage class using Azure Blob Storage (ABS).
 

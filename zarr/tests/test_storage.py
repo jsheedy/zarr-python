@@ -24,7 +24,7 @@ from zarr.meta import (ZARR_FORMAT, decode_array_metadata,
 from zarr.n5 import N5Store
 from zarr.storage import (ABSStore, ConsolidatedMetadataStore, DBMStore,
                           DictStore, DirectoryStore, LMDBStore, LRUStoreCache,
-                          MemoryStore, MongoDBStore, NestedDirectoryStore,
+                          StoreCache, MemoryStore, MongoDBStore, NestedDirectoryStore,
                           RedisStore, SQLiteStore, TempStore, ZipStore,
                           array_meta_key, atexit_rmglob, atexit_rmtree,
                           attrs_key, default_compressor, getsize,
@@ -1325,6 +1325,18 @@ class TestLRUStoreCache(StoreTests, unittest.TestCase):
         assert 1 == store.counter['__contains__', 'foo']
         assert keys == sorted(store)
         assert 1 == store.counter['__iter__']
+
+
+class TestStoreCache(StoreTests, unittest.TestCase):
+
+    def create_store(self):
+        return StoreCache(MemoryStore(), dict())
+
+    def test_cache_values(self):
+        store = self.create_store()
+        store['foo'] = b'xxx'
+        store['bar'] = b'yyy'
+        assert len(store._cache) == 2
 
 
 def test_getsize():
